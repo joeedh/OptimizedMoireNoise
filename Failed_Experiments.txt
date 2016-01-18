@@ -1,0 +1,8 @@
+1. Generators
+1.2 x*y*seed
+
+fract(X*y*seed) produces a very structured pattern.  It's structural ID function can be
+computed analyticaly, but has severe (severe!)  numberical precision issues. The ID filter
+reduced to a simple polynomial; just running the filter naively resulted in a very noisy
+result, which wasn't in the simplified polynomial.
+
