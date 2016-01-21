@@ -575,7 +575,7 @@ define([
       if (this.gui == undefined) return;
       
       if (window.innerWidth != this._lastsize[0] || window.innerHeight != this._lastsize[1]) {
-        this.on_resize();
+        //this.on_resize();
       }
       
       this.gui.on_tick();
