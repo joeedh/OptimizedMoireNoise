@@ -28,6 +28,83 @@ define(['util'], function sliders(util) {
     function bind_events() {
       var this2 = this;
       
+      var this2 = this;
+      
+      window.addEventListener("touchstart",function(e) {
+        //console.log(e.touches[0]);
+        e.touches[0].stopPropagation = function() {
+           e.stopPropagation()
+        }
+        e.touches[0].preventDefault = function() {
+           e.preventDefault()
+        }
+        
+        this.mdown = false;
+        this2.on_mousemove(e.touches[0]);
+        
+        if (this.actslider < 0) return;
+        
+        this2.on_mousedown(e.touches[0]);
+       // e.stopPropagation();
+       // e.preventDefault()
+      });
+      
+      window.addEventListener("touchmove",function(e) {
+        var mdown = this.mdown;
+        //this.mdown = true;
+        
+        e.touches[0].stopPropagation = function() {
+           e.stopPropagation()
+        }
+        e.touches[0].preventDefault = function() {
+           e.preventDefault()
+        }
+        
+        //console.log(e.touches[0]);
+        this2.on_mousemove(e.touches[0]);
+        this.mdown = mdown;
+        
+        if (this.actslider < 0) return;
+        
+    //    e.stopPropagation();
+    //    e.preventDefault()
+        
+      });
+      window.addEventListener("touchcancel",function(e) {
+        if (this.actslider < 0) return;
+        
+        e.touches[0].stopPropagation = function() {
+           e.stopPropagation()
+        }
+        e.touches[0].preventDefault = function() {
+           e.preventDefault()
+        }
+        
+        //console.log(e.touches[0]);
+        this2.on_mouseup(e.touches[0]);
+      //  e.stopPropagation();
+      //  e.preventDefault()
+      });
+      
+      window.addEventListener("touchend",function(e) {
+        if (this.actslider < 0) return;
+        
+        if (e.touches.length > 0) {
+          e.touches[0].stopPropagation = function() {
+             e.stopPropagation()
+          }
+          e.touches[0].preventDefault = function() {
+             e.preventDefault()
+          }
+          //console.log(e.touches[0]);
+          this2.on_mouseup(e.touches[0]);
+       } else {
+         this2.on_mouseup(e);
+       }
+       // e.stopPropagation();
+       // e.preventDefault()
+      });
+      
       window.addEventListener("mousedown", function(e) {
         this2.on_mousedown(e);
       });
@@ -120,6 +197,7 @@ define(['util'], function sliders(util) {
         
         window.redraw_all();
         e.stopPropagation();
+        e.preventDefault()
       }
 
       this.last_mpos[0] = e.pageX;
@@ -159,7 +237,13 @@ define(['util'], function sliders(util) {
         g.rect(b[0][0], b[0][1], b[1][0], b[1][1]);
         x += swid+pad;
         
-        g.fillStyle = i==this.actslider ? "rgba(50, 135, 230, 0.2)" : "rgba(0, 0, 0, 0.1)";
+        if (this.locked[i]) {
+          g.fillStyle = "rgba(255, 0, 0, 0.5)";
+        } else if (i == this.actslider) {
+          g.fillStyle =  "rgba(50, 135, 230, 0.2)";
+        } else {
+          g.fillStyle = "rgba(0, 0, 0, 0.1)";
+        }
         g.stroke();
         g.fill();
       }
