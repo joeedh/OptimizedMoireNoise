@@ -584,6 +584,7 @@ define([
     },
     
     function on_resize() {
+      return;
       this.canvas.width = window.innerWidth;
       this.canvas.height = window.innerHeight;
       
