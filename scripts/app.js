@@ -695,10 +695,14 @@ define([
     
     function build_ui() {
       var gui3 = this.gui3 = new ui.UI(cconst);
+      
       var panel = gui3.panel("Frequency Function");
       panel.curve("OFFSET_FREQ_FUNC", "Frequency", undefined, true);
       
       var gui2 = this.gui2 = new ui.UI(cconst);
+      gui2.dat.close();
+      gui3.dat.close();
+      
       gui2.panel("Offset Function");
       gui2.curve("OFFSET_FUNC", "Wave Curve", undefined, true);
       gui2.slider("OFFSET_MUL", "Freq", 0, 10775, 1, false, true);
@@ -721,6 +725,10 @@ define([
       gui.button("_reset", "Reset", function() {
         _appstate.reset();
         redraw_all();
+      });
+      
+      gui.button("_run", "Optimize", function() {
+        _appstate.step(_appstate.dimen);
       });
       
       gui.check("DRAW_COLORS", "Draw Colors");
@@ -806,6 +814,31 @@ define([
   _appstate.g = _appstate.canvas.getContext("2d");
   
   redraw_all();
+  
+  window.addEventListener("touchstart",function(e) {
+    //console.log(e.touches[0]);
+    _appstate.on_mousedown(e.touches[0]);
+  });
+  
+  //*
+  window.addEventListener("touchmove",function(e) {
+    //console.log(e.touches[0]);
+    this.mdown = true;
+    _appstate.on_mousemove(e.touches[0]);
+    //e.preventDefault()
+  });
+  window.addEventListener("touchcancel",function(e) {
+    //console.log(e.touches[0]);
+    _appstate.on_mouseup(e.touches[0]);
+    //e.preventDefault()
+  });
+  
+  window.addEventListener("touchend",function(e) {
+    //console.log(e.touches[0]);
+    _appstate.on_mouseup(e.touches[0]);
+    //e.preventDefault()
+  });
+  //*/
   
   window.addEventListener("keydown", _appstate.on_keydown.bind(_appstate));
   window.addEventListener("mousedown", _appstate.on_mousedown.bind(_appstate));
