@@ -644,23 +644,27 @@ define([
           this.save_mask();
           break;
         case 75: //kkey
-          if (this.timer != undefined) {
-            window.clearInterval(this.timer);
-            console.log("stopping timer");
-            
-            this.timer = undefined;
-            break;
-          }
-          
-          console.log("starting timer");
-          
-          var this2 = this;
-          this.timer = window.setInterval(function() {
-            this2.step();
-          }, 50);
+          this.do_optimize_timer();
           
           break;
       }
+    },
+    
+    function do_optimize_timer() {
+      if (this.timer != undefined) {
+        window.clearInterval(this.timer);
+        console.log("stopping timer");
+        
+        this.timer = undefined;
+        return;
+      }
+      
+      console.log("starting timer");
+      
+      var this2 = this;
+      this.timer = window.setInterval(function() {
+        this2.step();
+      }, 50);
     },
     
     function destroy_all_settings() {
@@ -729,7 +733,7 @@ define([
       });
       
       gui.button("_run", "Optimize", function() {
-        _appstate.step(_appstate.dimen);
+        _appstate.do_optimize_timer();
       });
       
       gui.check("DRAW_COLORS", "Draw Colors");
