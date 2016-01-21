@@ -1,7 +1,7 @@
 var _aa_generator = undefined;
 define([
-  "util", "const", "aa_generators", "aa_types", "localforage", "image"
-], function aa_generator(util, cconst, aa_generators, aa_types, localforage, image) {
+  "util", "const", "aa_generators", "aa_types", "localforage", "image", "vectormath"
+], function aa_generator(util, cconst, aa_generators, aa_types, localforage, image, vectormath) {
   'use strict';
   
   var exports = _aa_generator = {};
@@ -52,6 +52,8 @@ define([
     }
   ]);
   
+  var get_offset_rets = util.cachering.fromConstructor(vectormath.Vector2, 256);
+  
   window._localforage = localforage;
   localforage.setDriver('asyncStorage');
 
@@ -62,10 +64,39 @@ define([
   var cachering = util.cachering;
   var get_searchoff = util.get_searchoff;
   
-  //var GENERATOR = exports.GENERATOR = new aa_generators.SimpleGen();
-  //var GENERATOR = exports.GENERATOR = new aa_generators.GridGen();
-  //var GENERATOR = exports.GENERATOR = new aa_generators.GrateGen();
-  var GENERATOR = exports.GENERATOR = new aa_generators.BetterGen();
+  exports.get_reduce_id = window.get_reduce_id = function get_reduce_id(code, filter_size) {
+    var d = filter_size==undefined ? 1 : filter_size;
+
+    var p = 1;
+    var reduce_code = "on factor;\n";
+    reduce_code += "off period;\non rounded;\n";
+    reduce_code += "procedure sample(x, y);\n";
+    reduce_code += "    " + code + ";\n" //"    x*seed + y*(seed*0.5-k);\n"; //1.11235
+    reduce_code += "\n";
+    //ix*seed + iy*(seed*0.5-1.11235)
+    reduce_code += "f := "
+    
+    var first = true;
+    for (var i=-d; i<=d; i++) {
+      for (var j=-d; j<=d; j++) {
+        if (!first)
+          reduce_code += " + "
+          
+        first = false;
+        //reduce_code += "(1.0/"+primes[2+p++] + ")*(sample(ix+("+i+"), iy+("+j+"))*"+primes[p++]+"+"+primes[-2+p++]+")\n"
+        
+        //id += (f*primes[p++])/8;
+        reduce_code += "(" + p + " + " + primes[p++] + " * sample(ix+"+i+", iy+"+j+"))/8\n ";
+      }
+    }
+    return reduce_code + ";\n";
+  }
+
+  var GENERATOR = exports.GENERATOR = new aa_generators.FuncIxIySeed3();
+  
+  //var GENERATOR = exports.GENERATOR = new aa_generators.FuncIxIySeed();
+  //var GENERATOR = exports.GENERATOR = new aa_generators.ComplexFunc(); //iffy
+  //var GENERATOR = exports.GENERATOR = new aa_generators.FuncIxSeedPlusIyOverSeed();
   
   var OX=0, OY=1, OTOT=2;
   
@@ -120,7 +151,7 @@ define([
       var size = ~~(dimen);
       
       var DOMAIN_SIZE = cconst.RANDOM_SAMPLE ? cconst.DOMAIN_SIZE : size;
-      console.log("SIZE:", size, size*size, "VISITED", (100*this.tot_domain_visited/(DOMAIN_SIZE*DOMAIN_SIZE)).toFixed(2) + "%");
+      console.log("  size:", size, size*size, "VISITED", (100*this.tot_domain_visited/(DOMAIN_SIZE*DOMAIN_SIZE)).toFixed(2) + "%", "\n");
       
       var progressive = cconst.PROGRESSIVE;
       
@@ -130,6 +161,16 @@ define([
       var GTOT=1;
       var grid = new Float64Array(size*size*GTOT);
       var sample = this._gen;
+      
+      var this2 = this;
+      function filter(f) {
+        f = this2._gen.mask_transform(f)
+        
+        //var steps=2;
+        //f = (~~(f*steps))/steps;
+       
+        return 1.0-f;
+      }
       
       var offsets = this.offsets;
       var jitter = false;
@@ -198,7 +239,7 @@ define([
         if (ret.f < 0) 
           continue;
         
-        var f1 = ret.f, id=ret.id;
+        var f1 = filter(ret.f), id=ret.id;
         var ri = ~~(f1*255*0.9999999);
         
         hist[ri]++;
@@ -240,7 +281,6 @@ define([
         sum += hist[i];
 
         hist[i] = sum;
-        
         //hist[i] /= histmax;
       }
       //*/
@@ -248,12 +288,14 @@ define([
       window.hist = hist;
       window.histtot = histtot;
       
+      var rmul = 0.9;
+      
       var r;
       if (progressive) {
         var totpoint = size*size;
-        r = 0.908*Math.sqrt(size*size / (2*Math.sqrt(3)*totpoint));
+        r = rmul*Math.sqrt((size*size) / (2*Math.sqrt(3)*totpoint));
       } else {
-        r = 0.908*Math.sqrt(1.0 / (2*Math.sqrt(3)));
+        r = rmul*Math.sqrt(1.0 / (2*Math.sqrt(3)));
       }
       
       //r = 4.0;
@@ -272,23 +314,23 @@ define([
           continue;
         }
         
-        var f1 = ret.f, id1=ret.id;
+        var f1 = filter(ret.f), id1=ret.id;
         var ri = ~~(f1*255*0.999999);
         f1 = hist[ri];
         
         var totpoint = size*size, r1, r1_rd;
         if (progressive) {
           //don't let radius go to infinity as f1 goes to zero
-          r1 = 0.908*Math.sqrt(size*size / (2*Math.sqrt(3)*totpoint*f1));
+          r1 = rmul*Math.sqrt((size*size) / (2*Math.sqrt(3)*totpoint*f1));
           totpoint *= (f1*0.96 + 0.04);
           
-          r1_rd = 0.908*Math.sqrt((size*size) / (2*Math.sqrt(3)*totpoint));
+          r1_rd = (rmul+0.4)*Math.sqrt((size*size) / (2*Math.sqrt(3)*totpoint));
         } else {
           var r1 = r;
           r1_rd = r;
         }
         
-        var rd = ~~(Math.sqrt(2)*r1_rd*4+2)+1;
+        var rd = ~~(Math.sqrt(2)*r1_rd*3+1)+1;
         rd = Math.min(rd, 60);
         
         window.rd = rd;
@@ -317,7 +359,7 @@ define([
           
           var ret = sample.sample(~~ix2, ~~iy2, params);
           ix2=ret.co[0], iy2=ret.co[1];
-          var id2 = ret.id, f2 = ret.f;
+          var id2 = ret.id, f2 = filter(ret.f);
           
           if (f2 < 0) continue;
           
@@ -332,10 +374,16 @@ define([
           
           var r2, r3;
           if (progressive) {
-            totpoint = size*size*((f1*0.5+f2*0.5)*0.0 + Math.max(f1, f2)+0.00001);
+            var ff = Math.max(f1, f2);
             
-            r2 = 1.1*Math.sqrt((size*size) / (2*Math.sqrt(3)*totpoint));
+            var ri = ~~(ff*255*0.999999);
+            ff = hist[ri];
+            
+            totpoint = size*size*((f1*0.5+f2*0.5)*0.0 + ff + 0.000001);
+            
+            r2 = rmul*Math.sqrt((size*size) / (2*Math.sqrt(3)*totpoint));
             r3 = r2*3;
+            //r3=r1*3;
           } else {
             r2=r, r3=r2*3;
           }
@@ -363,11 +411,21 @@ define([
           dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
           var w = 1.0 - dis/r3;
           
-          w *= w*w*w*w;
-
-          //var dd = 1.0;
-          //var fw = (f2+dd) / (dd+f1);
-          //w *= Math.pow(fw, 0.1);
+          //w *= w;
+          w *= w*w;
+          //w *= f2;
+          
+          if (progressive) {
+            //w *= Math.pow(Math.min(f1, f2), 50.0);
+            var dd = 3.0;
+            var fw = (f2+dd) / (dd+f1);
+            //w *= Math.pow(fw, 10.0);
+            //w *= (f2/f1)*(f2/f1);
+            
+                //var fd = f1/(0.00001+2*Math.sqrt(3)*f2);
+                //var fd = f2/(0.000001+f1);
+                //w *= fd//Math.sqrt(fd+0.0001);
+          }
           
           dx *= r/dis;
           dy *= r/dis;
@@ -386,7 +444,9 @@ define([
         sumx /= sumw;
         sumy /= sumw;
         
-        var fac = progressive ? 0.9 : 0.1;
+        var fac = progressive ? 0.3 : 0.1;
+        
+        
         ix += sumx*fac;
         iy += sumy*fac;
         
@@ -399,7 +459,7 @@ define([
       }
       
       redraw_all();
-      var ratio = this.totid / (DOMAIN_SIZE*DOMAIN_SIZE);
+      var ratio = this.totid / this.tot_domain_visited;
       
       console.log("\nTOTID", this.totid, " of ", DOMAIN_SIZE*DOMAIN_SIZE, "ratio:", ratio.toFixed(3));
       console.log("  visited", this.id_donemap.length, "of", this.offsets.used);
@@ -470,6 +530,27 @@ define([
       localforage.setItem("startup_file_bn10_offsets", offs);
     },
     
+    function get_offset(aa_return, params) {
+      var ret = get_offset_rets.next();      
+      
+      if (cconst.USE_OFFSET_FUNCTIONS) {
+        var f = cconst.OFFSET_FUNC_FMODE ? aa_return.f : aa_return.float_id;
+        
+        ret[0] = this._gen.offset_x(f, params);
+        ret[1] = this._gen.offset_y(f, params);
+        
+      } else if (this.offsets.has(aa_return.id)) {
+        var dxdy = this.offsets.get(aa_return.id);
+        
+        ret[0] = dxdy[0];
+        ret[1] = dxdy[1];
+      } else {
+        ret[0] = ret[1] = 0;
+      }
+
+      return ret;
+    },
+    
     function gen(points, size1, params, image_tiles) {
       var sampler = this._gen;
       var tileidx = image.tileidx;
@@ -498,13 +579,13 @@ define([
         var oix=ix, oiy=iy;
         
         var ret = sampler.sample(ix, iy, params);
-        var f = ret.f, id = ret.id;
+        var f = ret.f, id = ret.id, float_id = ret.float_id;
         ix = ret.co[0], iy = ret.co[1];
         
-        if (offsets.has(id) && !cconst.OFFSET_FUNCTIONS) {
-          var dxy = offsets.get(id);
-          ix += dxy[0], iy += dxy[1];
-        }
+        var dxdy = this.get_offset(ret, params);
+        
+        ix += dxdy[0];
+        iy += dxdy[1];
         
         var x = (ix-panx)/size1, y = (iy-pany)/size1;
         
@@ -519,12 +600,14 @@ define([
         points[pi+PY] = y;
         points[pi+PIX] = oix;
         points[pi+PIY] = oiy;
-        points[pi+PID] = ret.id;
-        points[pi+PGEN] = f;
+        points[pi+PID] = id;
+        points[pi+PGEN] = this._gen.mask_transform(f);
         points[pi+PF] = f;
+        points[pi+PFID] = float_id;
         
-        
-        var fi = ~~(Math.pow(f, 5)*255);
+        //f = 1.0 - (1.0-f)*(1.0-f);
+        //f = Math.pow(f, 10.0);
+        var fi = ~~(this._gen.mask_transform(f)*255);
         
         //ix -= border>>1;
         //iy -= border>>1;

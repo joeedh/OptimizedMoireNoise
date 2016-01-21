@@ -514,7 +514,8 @@ define([
     656587, 1116209, 1897561, 3225883, 5484019, 9322861, 15848867,
     26943089, 45803279, 77865577, 132371489, 225031553
   ];
-
+  //1073741823
+  
   var IntHash = exports.IntHash = exports.Class(Array, [
     function constructor(totelem) {
       Array.call(this);

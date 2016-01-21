@@ -1,4 +1,4 @@
-var PX=0, PY=1, PIX=2, PIY=3, PID=4, PGEN=5, PF=6, PTOT=7;
+var PX=0, PY=1, PIX=2, PIY=3, PID=4, PGEN=5, PF=6, PFID=7, PTOT=8;
 
 var _const = undefined;
 define([
@@ -8,23 +8,38 @@ define([
   
   var exports = _const = {};
   
+  exports.MASK_LEVEL_TRANSFORM = function(f) {
+    f *= 1.02;
+    return Math.min(Math.exp(-f*7), 1.0);
+    return Math.min((Math.pow(f, 5.0)*0.5+Math.pow(f, 3.0)*0.5)*1.03, 1.0);
+  }
+  
   exports.GRAPH_SCALE = 0.0;
   exports.GRAPH_PAN = 0.0;
-  exports.SMOOTH_GRAPH = true;
-  exports.DRAW_COLORS = true;
-  exports.DRAW_IDS = true;
-  exports.PROGRESSIVE = true;
+  exports.SMOOTH_GRAPH = false;
+  exports.DRAW_COLORS = false;
+  exports.DRAW_IDS = false;
+  exports.PROGRESSIVE = false;
   
-  exports.DIMEN = 24;
-  exports.SLIDERS = [0.8471428571428565, 0.0625, 0.0, 0.0, 0.5];
+  exports.DIMEN = 32;
+  exports.SLIDERS = [0.375, 0.28125, 0, 0, 0.5];
   window._SLIDERS = exports.SLIDERS;
   
   exports.DRAW_IMAGE_SIZE = 6;
-  exports.DOMAIN_SIZE = 2048;
-  exports.RANDOM_SAMPLE = true;
+  exports.DOMAIN_SIZE = 2048*4;
+  exports.RANDOM_SAMPLE = false;
   exports.DRAW_OFFSET_FUNCS = false;
   
-  exports.OFFSET_FUNCTIONS = false;
+  exports.USE_OFFSET_FUNCTIONS = false;
+  exports.OFFSET_FUNC = undefined;
+  exports.OFFSET_MUL = 10;
+  exports.OFFSET_AMPLITUDE = 1.0;
+  exports.OFFSET_MIDLEVEL = 0.5;
+  exports.OFFSET_PHASEX = 0.0;
+  exports.OFFSET_PHASEY = 0.5;
+  exports.OFFSET_PHASE  = 0.5;
+  exports.OFFSET_FUNC_FMODE = false; //use generator function value instead of id value
+  exports.OFFSET_FREQ_FUNC = undefined;
   
   exports.DOMAIN_PAN_MUL = 128;
   

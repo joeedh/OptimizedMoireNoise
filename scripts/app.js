@@ -87,6 +87,7 @@ define([
       var x = e.pageX, y = e.pageY;
       
       if (this.mdown) {
+        /*
         var scale = 0.005;
         var dx = (x-this.last_mpos[0])*scale, dy = -(y-this.last_mpos[1])*scale;
         
@@ -107,7 +108,7 @@ define([
         this.sliders.sliders[4] += dy;
         this.sliders.save();
         
-        redraw_all();
+        redraw_all();*/
       }
       
       this.last_mpos[0] = x;
@@ -212,8 +213,6 @@ define([
     },
     
     function step() {
-      console.log("step!");
-      
       this.generator.step(this.dimen, this.sliders.sliders);
       this.generator.save_offsets();
       
@@ -275,17 +274,17 @@ define([
       var tots = new Array(this.points.length/PTOT);
       lst.fill(0, 0, lst.length);
       tots.fill(0, 0, tots.length);
+      var aaret = new aa_types.AAReturn();
       
       for (var i=0; i<this.points.length; i += PTOT) {
         var f = ps[i+PF];
-        var dxdy = offsets.get(ps[i+PID]);
+        
+        aaret.id = ps[i+PID], aaret.f = ps[i+PF]; aaret.float_id = ps[i+PFID];
+        
+        var dxdy = this.generator.get_offset(aaret, this.sliders.sliders);
         
         var j = ~~(f*lst.length*0.999999);
-        
         var dx = dxdy[0];
-        if (cconst.OFFSET_FUNCTIONS) {
-          dx = ps[i]*this.dimen - ps[i+PIX];
-        }
         
         lst[j] += dx;
         tots[j]++;
@@ -339,10 +338,12 @@ define([
     },
     
     function update_slider_locks() {
-      if (cconst.PROTECT_OFFFSETS) {
+      if (cconst.PROTECT_OFFFSETS || this.generator.offsets.used > 0) {
         this.sliders.lock(0);
+        this.sliders.lock(1);
       } else {
         this.sliders.unlock(0);
+        this.sliders.unlock(1);
       }
     },
     
@@ -426,16 +427,15 @@ define([
         var lst = [];
         
         for (var i=0; i<ps.length; i += PTOT) {
-          var id = ps[i+PID];
-          var f = ps[i+PF];
-          
           lst.push(i);
         }
         
+        var use_fid = !cconst.OFFSET_FUNC_FMODE;
+        
         lst.sort(function(a, b) {
-          var f1 = ps[a+PF], f2 = ps[b+PF];
+          var f1 = ps[a + (use_fid ? PFID : PF)], f2 = ps[b + (use_fid ? PFID : PF)];
           
-          return f1-f2;
+          return f1 - f2;
         });
         
         g.save();
@@ -446,6 +446,7 @@ define([
         g.stroke();
         
         var ma = new util.MovingAverage(4);
+        var aaret = new aa_types.AAReturn();
         
         for (var si=0; si<2; si++) {
           g.beginPath();
@@ -454,13 +455,15 @@ define([
           
           for (var _i=0; _i<lst.length; _i++) {
             var i = lst[_i];
-            var id = ps[i+PID], f = ps[i+PF];
+            var id = ps[i+PID], f = ps[i+PF], fid = cconst.OFFSET_FUNC_FMODE ? ps[i+PF] : ps[i+PFID];
             
-            if (!offsets.has(id)) {
-              continue;
-            }
+            aaret.id = id;
+            aaret.f = f;
+            aaret.float_id = ps[i+PFID];
+            aaret.co[0] = aaret.co[1] = 0;
+            aaret.mask_f = ps[i+PGEN];
             
-            var dxdy = offsets.get(id);
+            var dxdy = this.generator.get_offset(aaret, this.sliders.sliders);
             
             if (isNaN(f) || isNaN(id) || isNaN(dxdy[0]) || isNaN(dxdy[1])) {
               console.log(f, id, dxdy[0], dxdy[1], dxdy);
@@ -472,15 +475,8 @@ define([
             
             scale = 1 + 900*scale;
             
-            var x = (-cconst.GRAPH_PAN + f) * scale;
+            var x = (-cconst.GRAPH_PAN + fid) * scale;
             var y = si ? dxdy[1] : dxdy[0];
-            
-            if (cconst.OFFSET_FUNCTIONS) {
-              var procx = ps[i]*this.dimen - ps[i+PIX];
-              var procy = ps[i+1]*this.dimen - ps[i+PIY];
-              
-              y = si ? procy : procx;
-            }
             
             if (cconst.SMOOTH_GRAPH) {
               ma.add(y);
@@ -515,7 +511,7 @@ define([
         
         if (cconst.DRAW_COLORS) {
           clr[0] = (1-gen)*0.25;
-          clr[1] = clr[2] = gen;
+          clr[1] = clr[2] = gen*gen*gen*gen*gen;
         } else if (cconst.DRAW_IDS) {
           //var fid = ((~~id)*524287 + 4194271) & 16777213//((1<<19)-1);
           //fid /= 16777213//((1<<19)-1);
@@ -526,7 +522,7 @@ define([
           //fid = Math.cos(id / ((1<<9)-1))*0.5+0.5; 
           
           //fid = fid*0.5 + 0.5;
-          var fid = id / ((1<<19)-1);
+          var fid = Math.fract(id / ((1<<19)-1));
           
           
           clr[0] = clr[1] = clr[2] = fid;
@@ -583,6 +579,8 @@ define([
       }
       
       this.gui.on_tick();
+      this.gui2.on_tick();
+      this.gui3.on_tick();
     },
     
     function on_resize() {
@@ -677,8 +675,10 @@ define([
       
       this.gui.destroy();
       this.gui2.destroy();
+      this.gui3.destroy();
       this.gui = undefined;
       this.gui2 = undefined;
+      this.gui3 = undefined;
       
       var this2 = this;
       
@@ -694,12 +694,28 @@ define([
     },
     
     function build_ui() {
+      var gui3 = this.gui3 = new ui.UI(cconst);
+      var panel = gui3.panel("Frequency Function");
+      panel.curve("OFFSET_FREQ_FUNC", "Frequency", undefined, true);
+      
+      var gui2 = this.gui2 = new ui.UI(cconst);
+      gui2.panel("Offset Function");
+      gui2.curve("OFFSET_FUNC", "Wave Curve", undefined, true);
+      gui2.slider("OFFSET_MUL", "Freq", 0, 10775, 1, false, true);
+      gui2.slider("OFFSET_AMPLITUDE", "Amp", 0, 4, 0.001, false, true);
+      gui2.slider("OFFSET_MIDLEVEL", "Mid Level", 0, 1, 0.001, false, true);
+      gui2.slider("OFFSET_PHASE", "Wave Phase", 0, 1, 0.001, false, true);
+      gui2.slider("OFFSET_PHASEX", "X Phase", 0, 1, 0.001, false, true);
+      gui2.slider("OFFSET_PHASEY", "Y Phase", 0, 1, 0.001, false, true);
+      gui2.check("OFFSET_FUNC_FMODE", "Use F");
+      
       var gui = this.gui = new ui.UI(cconst);
+      
       //("GRAPH_SCALE", "Graph Scale", 0.0, 1.0, 0.0001, false, true);
       gui.slider("DIMEN", "Dimen", 0, 128, 1, true, false);
       gui.check("PROTECT_OFFFSETS", "Protect Offsets");
-      gui.slider("DOMAIN_PANX", "X Shift", 0, 324, 1, true, false);
-      gui.slider("DOMAIN_PANY", "Y Shift", 0, 324, 1, true, false);
+      gui.slider("DOMAIN_PANX", "X Shift", 0, 324, 1, true, true);
+      gui.slider("DOMAIN_PANY", "Y Shift", 0, 324, 1, true, true);
       
       var this2 = this;
       gui.button("_reset", "Reset", function() {
@@ -724,14 +740,14 @@ define([
       
       panel.check("LIMIT_INTENSITY", "Limit Intensity");
       panel.slider("INTENSITY_STEPS", "Steps", 1, 100, 1, true, true);
-      panel.slider("ID_INTENSITY_STEPS", "ID Steps", 1, 400, 1, true, true);
+      panel.slider("ID_INTENSITY_STEPS", "ID Steps", 1, 1400, 1, true, true);
       panel.check("BRUTE_FORCE_IDS", "Brute Force");
       
       gui.check("RANDOM_SAMPLE", "Random Domain");
       gui.check("PROGRESSIVE", "Progressive");
       
       var panel = gui.panel("Point Cache");
-      panel.check('OFFSET_FUNCTIONS', 'Procedural Offsets');
+      panel.check('USE_OFFSET_FUNCTIONS', 'Procedural Offsets');
       
       panel.button("clear_cache", "Clear Cache", function() {
         console.log("clearing offsets");
@@ -740,11 +756,13 @@ define([
         redraw_all();
       }, this);
       
+      /*
       var panel = gui.panel("FFT");
       var this2 = this;
       panel.button("fft", "FFT", function() {
         _appstate.offsets_fft()
       });
+      //*/
       
       var panel = gui.panel("Graph Offset Functions");
       

@@ -89,7 +89,10 @@ define([
       var ret = new CurvePoint(this);
       
       ret.tangent = this.tangent;
-      ret.rco.load(ret);
+      ret.rco.load(this.rco);
+      ret.sco.load(this.sco);
+      ret.startco.load(this.startco);
+      ret.deg = this.deg;
       
       return ret;
     },
@@ -119,6 +122,8 @@ define([
     function basis(t, kprev, knext, is_end, totp, pi) {
       var wid = (knext-kprev)*0.5;
       var k = this.rco[0];
+      
+      throw new Error();
       
       this.deg = 3;
       
@@ -208,64 +213,37 @@ define([
       
       this._ps = [];
       if (this.length < 2) return;
+      
       var a = this[0][0], b = this[this.length-1][0];
-      
-      /*
-      var steps=this.length*2
-      for (var i=0; i<steps; i++) {
-        var f = i/(steps-1);
-        
-        var p = new CurvePoint();
-        p[0] = f;
-        p[1] = 0.5;
-        p.rco.load(p);
-        
-        this._ps.push(p);
-      }
-      this.optimize();
-      return;
-      //*/
-      
+    
       for (var i=0; i<this.length-1; i++) {
         this._ps.push(this[i]);
       }
       
       if (this.length < 3) return;
 
-      var l1 = this[this.length-1];
-      var l2 = this[this.length-2];
+      var l1 = this[this.length-3];
+      var l2 = this[this.length-1];
       
-      var p = l1.copy();
-      p.rco[0] = l1.rco[0] - 0.00004;
-      p.rco[1] = l2.rco[1] + (l1.rco[1] - l2.rco[1])*1.0/3.0;
-      //this._ps.push(p);
+      var p = l2.copy();
+      var dx = (l2[0]-l1[0]);
+      var dy = (l2[1]-l1[1]);
       
-      var p = l1.copy();
-      p.rco[0] = l1.rco[0] - 0.00003;
-      p.rco[1] = l2.rco[1] + (l1.rco[1] - l2.rco[1])*1.0/3.0;
-      //this._ps.push(p);
+      //p[0] += dx/3 
+      //p[1] += dy/3
       
-      var p = l1.copy();
-      p.rco[0] = l1.rco[0] - 0.00001;
-      p.rco[1] = l2.rco[1] + (l1.rco[1] - l2.rco[1])*1.0/3.0;
+      p.rco.load(p);
+      p.sco.load(p);
+      
       this._ps.push(p);
+      this._ps.push(p.copy());
       
-      var p = l1.copy();
-      p.rco[0] = l1.rco[0] - 0.00001;
-      p.rco[1] = l2.rco[1] + (l1.rco[1] - l2.rco[1])*2.0/3.0;
-      this._ps.push(p);
-      
-      this._ps.push(l1);
-      
-      for (var i=0; i<this._ps.length; i++) {
-        //this._ps[i].rco.load(this._ps[i]);
-      }
-      
-      this.optimize();
+      //this._ps.push(
+      //this.optimize();
       
       for (var i=0; i<this.length; i++) {
         var p = this[i];
-        var x = p[0], y = p[1];//this.evaluate(x);
+        var x = p[0], y = p[1];
         
         p.sco[0] = x;
         p.sco[1] = y;
@@ -641,7 +619,7 @@ define([
       var p = this._ps[i].rco, nk, pk;
       var deg = this.deg;
       
-      var b = bas(t, i-deg, deg);
+      var b = bas(t, i-deg+1, deg);
       
       return b;
     },
@@ -747,6 +725,7 @@ define([
           return this._evaluate2(t)[1];
         
         var fac = -(f1/g)*0.5;
+        
         if (fac == 0.0) {
           fac = 0.01;
         } else if (Math.abs(fac) > 0.1) {
@@ -765,40 +744,6 @@ define([
       var ret = eval2_rets.next();
       
       t *= 0.9999999;
-      //catmull-rom.  eek!
-      
-      /*
-      for (var i=0; i<this.length-1; i++) {
-        var p1 = this[i], p2 = this[i+1];
-        var prev = i == 0 ? p1 : this[i-1];
-        var next = i >= this.length-2 ? p2 : this[i+2];
-        
-        if (t >= p1[0] && t < p2[0]) {
-            var t2 = (t - p1[0]) / (p2[0] - p1[0]);
-            var df1, df2;
-            
-            if (p2 === prev) {
-              df1 = 0.0;
-            } else {
-              df1 = (p2[1] - prev[1]) / (p2[0] - prev[0]+0.00001);
-            }
-            
-            if (next === p1) {
-              df2 = 0.0;
-            } else {
-              df2 = (next[1] - p1[1]) / (next[0] - p1[0]+0.00001);
-            }
-            
-            df1 /= 3.0*this.length;
-            df2 /= 3.0*this.length;
-            
-            return bez4(p1[1], p1[1]+df1, p2[1]-df2, p2[1], t2);
-            return p1[1] + (p2[1] - p1[1])*t2;
-        }
-      }
-      
-      return t < p1[0] ? p1[1] : p2[1];
-      //*/
       
       var totbasis = 0;
       var sumx = 0;
@@ -827,9 +772,11 @@ define([
   ]);
   
   var CurveWidget = exports.CurveWidget = Class([
-    function constructor(bind_obj, setting_id) {
+    function constructor(bind_obj, setting_id, trigger_redraw) {
       this.curve = new Curve(this);
       this.setting_id = setting_id;
+      this.bind_obj = bind_obj;
+      this.trigger_redraw = trigger_redraw;
       
       this.curve.add(0, 0);
       this.curve.add(1, 1);
@@ -951,6 +898,10 @@ define([
       
       if (this.transforming) {
         this.do_transform(x, y);
+        
+        if (this.trigger_redraw) {
+          redraw_all();
+        }
         this.save();
       } else {
         this.do_highlight(x, y);
@@ -974,7 +925,12 @@ define([
             
             this.curve.highlight = undefined;
             this.curve.update();
+            
             this.save();
+            
+            if (this.trigger_redraw) {
+              redraw_all();
+            }
             
             redraw_all();
           }
@@ -1023,6 +979,9 @@ define([
         this2.curve.update();
         this2.draw();
         this2.save();
+        if (this2.trigger_redraw) {
+          redraw_all();
+        }
       });
     },
     
@@ -1080,6 +1039,8 @@ define([
       for (var i=0; i<steps; i++, f += df) {
         var val = this.curve.evaluate(f);
         
+        //var xy = this.curve._evaluate2(f);
+        //(i==0 ? g.moveTo : g.lineTo).call(g, xy[0], xy[1], w, w);
         (i==0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
       }
       
@@ -1090,7 +1051,9 @@ define([
       
       g.lineWidth *= 3.0;
       for (var ssi=0; ssi<2; ssi++) {
+        //comment out to draw basis functions
         break;
+        
         for (var si=0; si<this.curve.length; si++) {
           g.beginPath();
           
@@ -1129,6 +1092,7 @@ define([
         //console.log(p);
         
         g.beginPath();
+        
         g.fillStyle = "orange";
         if (p == this.curve.highlight) {
           g.fillStyle = "green";
@@ -1144,7 +1108,6 @@ define([
       g.stroke();
       g.restore();
     }
-    
   ]);
     
   var destroy_all_settings = exports.destroy_all_settings = function destroy_all_settings() {
@@ -1226,8 +1189,8 @@ define([
       }
     },
     
-    function curve(id, name, default_preset) {
-      var cw = new CurveWidget(id);
+    function curve(id, name, default_preset, trigger_redraw) {
+      var cw = new CurveWidget(this.bind_obj, id, trigger_redraw);
       cw.load(default_preset);
       
       var l = this.dat.add({bleh : "name"}, "bleh");
